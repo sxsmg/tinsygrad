@@ -33,3 +33,18 @@ class Tensor:
         result = Tensor(result_data, requires_grad=(self.requires_grad or other.requires_grad))
         result.grad_fn = "matrix multiplication"
         return result
+
+    def transpose(self):
+        return Tensor(np.transpose(self.data), requires_grad=self.requires_grad)
+
+    def sum(self, axis=None):
+        return Tensor(np.sum(self.data, axis=axis), requires_grad=self.requires_grad)
+    
+    def mean(self, axis=None):
+        return Tensor(np.mean(self.data, axis=axis), requires_grad=self.requires_grad)
+    
+    def relu(self):
+        return Tensor(np.maximum(0, self.data), requires_grad=self.requires_grad)
+    
+    def sigmoid(self):
+        return Tensor(1 / (1 + np.exp(-self.data)), requires_grad=self.requires_grad)
