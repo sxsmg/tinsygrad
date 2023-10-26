@@ -20,10 +20,3 @@ class LazyBuffer:
     def __repr__(self):
         return f"LazyBuffer(data={self.data}, op={self.op})" 
     
-
-# Test LazyBuffer
-a = LazyBuffer(data=np.array([1, 2, 3]))
-b = LazyBuffer(data=np.array([4, 5, 6]))
-c = LazyBuffer(op="add", parents=[a, b])
-
-c.realize(), print(c.data)

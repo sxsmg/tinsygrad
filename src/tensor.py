@@ -1,14 +1,18 @@
 import numpy as np 
-
+from .lazy import LazyBuffer
 class Tensor:
-    def __init__(self, data, requires_grad=False):
+    def __init__(self, data, requires_grad=False, _lazy_buffer=None):
         if not isinstance(data, np.ndarray):
             data = np.array(data)
-        self.data = data 
+        self._lazy_buffer = _lazy_buffer or LazyBuffer(data=np.array(data))
         self.requires_grad = requires_grad
         self.grad = None 
         self.grad_fn = None
 
+    @property
+    def data(self):
+        return self._lazy_buffer.realize().data
+    
     def __repr__(self):
         return f"Tensor({self.data}, requires_grad={self.requires_grad})"
 
