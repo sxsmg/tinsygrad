@@ -1,3 +1,4 @@
+#Tensor.py
 import numpy as np 
 from .lazy import LazyBuffer
 class Tensor:
