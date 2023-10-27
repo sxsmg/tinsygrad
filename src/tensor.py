@@ -1,11 +1,10 @@
-#Tensor.py
+# tensor.py
 import numpy as np 
 from .lazy import LazyBuffer
+
 class Tensor:
-    def __init__(self, data, requires_grad=False, _lazy_buffer=None):
-        if not isinstance(data, np.ndarray):
-            data = np.array(data)
-        self._lazy_buffer = _lazy_buffer or LazyBuffer(data=np.array(data))
+    def __init__(self, data=None, requires_grad=False, _lazy_buffer=None):
+        self._lazy_buffer = _lazy_buffer or LazyBuffer(data=data)
         self.requires_grad = requires_grad
         self.grad = None 
         self.grad_fn = None
@@ -20,36 +19,51 @@ class Tensor:
     def __add__(self, other):
         if not isinstance(other, Tensor):
             other = Tensor(other)
-        result = Tensor(self.data + other.data, requires_grad=self.requires_grad or other.requires_grad)
+        new_buffer = LazyBuffer(op="add", parents=[self._lazy_buffer, other._lazy_buffer])
+        result = Tensor(None, requires_grad=self.requires_grad or other.requires_grad, _lazy_buffer=new_buffer)
         result.grad_fn = 'addition'
         return result
 
+    def __sub__(self, other):
+        if not isinstance(other, Tensor):
+            other = Tensor(data=other)
+        new_buffer = LazyBuffer(op="sub", parents=[self._lazy_buffer, other._lazy_buffer])
+        return Tensor(_lazy_buffer=new_buffer, requires_grad=self.requires_grad or other.requires_grad)
+
     def __mul__(self, other):
         if not isinstance(other, Tensor):
-            other = Tensor(other)
-        result = Tensor(self.data * other.data, requires_grad=(self.requires_grad or other.requires_grad))
-        result.grad_fn = "element-wise multiplication"
-        return result 
+            other = Tensor(data=other)
+        new_buffer = LazyBuffer(op="mul", parents=[self._lazy_buffer, other._lazy_buffer])
+        return Tensor(_lazy_buffer=new_buffer, requires_grad=self.requires_grad or other.requires_grad)
+
+    def __truediv__(self, other):
+        if not isinstance(other, Tensor):
+            other = Tensor(data=other)
+        new_buffer = LazyBuffer(op="div", parents=[self._lazy_buffer, other._lazy_buffer])
+        return Tensor(_lazy_buffer=new_buffer, requires_grad=self.requires_grad or other.requires_grad)
 
     def __matmul__(self, other):
         if not isinstance(other, Tensor):
-            other = Tensor(other)
-        result_data = np.matmul(self.data, other.data)
-        result = Tensor(result_data, requires_grad=(self.requires_grad or other.requires_grad))
-        result.grad_fn = "matrix multiplication"
-        return result
+            other = Tensor(data=other)
+        new_buffer = LazyBuffer(op="matmul", parents=[self._lazy_buffer, other._lazy_buffer])
+        return Tensor(_lazy_buffer=new_buffer, requires_grad=self.requires_grad or other.requires_grad)
 
     def transpose(self):
-        return Tensor(np.transpose(self.data), requires_grad=self.requires_grad)
+        new_buffer = LazyBuffer(op="transpose", parents=[self._lazy_buffer])
+        return Tensor(_lazy_buffer=new_buffer, requires_grad=self.requires_grad)
 
     def sum(self, axis=None):
+        # NOTE: This operation doesn't retain laziness for now since numpy's sum is used
         return Tensor(np.sum(self.data, axis=axis), requires_grad=self.requires_grad)
     
     def mean(self, axis=None):
+        # NOTE: This operation doesn't retain laziness for now since numpy's mean is used
         return Tensor(np.mean(self.data, axis=axis), requires_grad=self.requires_grad)
     
     def relu(self):
-        return Tensor(np.maximum(0, self.data), requires_grad=self.requires_grad)
-    
+        new_buffer = LazyBuffer(op="relu", parents=[self._lazy_buffer])
+        return Tensor(None, requires_grad=self.requires_grad, _lazy_buffer=new_buffer)
+
     def sigmoid(self):
-        return Tensor(1 / (1 + np.exp(-self.data)), requires_grad=self.requires_grad)
+        new_buffer = LazyBuffer(op="sigmoid", parents=[self._lazy_buffer])
+        return Tensor(None, requires_grad=self.requires_grad, _lazy_buffer=new_buffer)
