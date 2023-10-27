@@ -32,8 +32,11 @@ class LazyBuffer:
                 self.data = np.sum(self.parents[0].realize().data)
             elif self.op == "sigmoid":
                 self.data = 1 / (1 + np.exp(-self.parents[0].realize().data))
+            elif self.op == "power":
+                self.data = self.parents[0].realize().data ** self.parents[1].realize().data
             else:
                 raise ValueError(f"Unknown operation {self.op}")
+        self.data = np.array(self.data)
         return self
 
     def __repr__(self):
