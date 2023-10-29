@@ -2,11 +2,14 @@
 from .tensor import Tensor
 import numpy as np
 from numba import jit
+from .lazy import LazyBuffer
+
 #layers
 class Linear:
     def __init__(self, in_features, out_features):
-        self.weights = Tensor(np.random.randn(in_features, out_features))
-        self.bias = Tensor(np.random.randn(out_features))
+        # Initialize with a lazy buffer for weights and biases
+        self.weights = Tensor(_lazy_buffer=LazyBuffer(data=np.random.randn(in_features, out_features)))
+        self.bias = Tensor(_lazy_buffer=LazyBuffer(data=np.random.randn(out_features)))
     
     def forward(self, x):
         return x @ self.weights + self.bias
