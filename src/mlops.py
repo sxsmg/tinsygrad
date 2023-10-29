@@ -14,6 +14,59 @@ class Linear:
     def forward(self, x):
         return x @ self.weights + self.bias
 
+class Conv2D:
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0):
+        # Initializing with lazy buffers
+        self.weights = Tensor(_lazy_buffer=LazyBuffer(data=np.random.randn(out_channels, in_channels, kernel_size, kernel_size)))
+        self.bias = Tensor(_lazy_buffer=LazyBuffer(data=np.random.randn(out_channels)))
+        self.stride = stride
+        self.padding = padding
+
+    
+    def _im2col(self, input_data, kernel_height, kernel_width, stride):
+        N, C, H, W = input_data.shape
+        out_h = (H + 2*self.padding - kernel_height) // stride + 1
+        out_w = (W + 2*self.padding - kernel_width) // stride + 1
+
+        img = np.pad(input_data, [(0,0), (0,0), (self.padding, self.padding), (self.padding, self.padding)], 'constant')
+        
+        # Create strided version of input. Every stride creates a channel
+        shape = (N, C, out_h, out_w, kernel_height, kernel_width)
+        strides = (*img.strides[:-2], img.strides[-2] * stride, img.strides[-1] * stride, *img.strides[-2:])
+        
+        windows = np.lib.stride_tricks.as_strided(img, shape=shape, strides=strides)
+        print("working")
+        # Reshape the windows into 2D array
+        cols = windows.reshape(N*out_h*out_w, -1)
+        return cols
+
+
+
+    def forward(self, x):
+        # Lazy evaluation
+        x_data = x._lazy_buffer.realize().data
+        weights_data = self.weights._lazy_buffer.realize().data
+
+        # Extract shape information
+        batch_size, in_channels, H, W = x_data.shape
+        out_channels, _, kernel_height, kernel_width = weights_data.shape
+
+        # Calculate the output dimensions
+        H_out = (H + 2 * self.padding - kernel_height) // self.stride + 1
+        W_out = (W + 2 * self.padding - kernel_width) // self.stride + 1
+
+        # Convert tensors to 2D matrices suitable for matmul
+        cols = self._im2col(x_data, kernel_height, kernel_width, self.stride)
+        weights_2d = weights_data.reshape(out_channels, -1)
+        
+        out = np.matmul(weights_2d, cols.T) + self.bias.data.reshape(-1, 1)
+        out = out.reshape(out_channels, H_out, W_out, batch_size).transpose(3, 0, 1, 2)
+        assert out.shape == (batch_size, out_channels, H_out, W_out), f"Expected output shape: {(batch_size, out_channels, H_out, W_out)}, but got: {out.shape}"
+        return Tensor(out)
+
+
+
+#layer ops
 class Dropout:
     def __init__(self, p=0.5):
         self.p = p
@@ -32,39 +85,10 @@ class Dropout:
         self.mask = (np.random.rand(*x.data.shape) > self.p) / (1.0 - self.p)
         return x * self.mask
 
-class Conv2D:
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0):
-        self.weights = Tensor(np.random.randn(out_channels, in_channels, kernel_size, kernel_size))
-        self.bias = Tensor(np.random.randn(out_channels))
-        self.stride = stride
-        self.padding = padding
-
+class Flatten:
     def forward(self, x):
-        # Extract shape information
-        batch_size, in_channels, H, W = x.data.shape
-        out_channels, _, kernel_height, kernel_width = self.weights.data.shape
-
-        # Calculate output dimensions
-        H_out = (H - kernel_height + 2 * self.padding) // self.stride + 1
-        W_out = (W - kernel_width + 2 * self.padding) // self.stride + 1
-
-        # Initialize output tensor
-        out = np.zeros((batch_size, out_channels, H_out, W_out))
-
-        # Apply padding to the input tensor if specified
-        if self.padding > 0:
-            x_padded = np.pad(x.data, ((0, 0), (0, 0), (self.padding, self.padding), (self.padding, self.padding)), mode='constant')
-        else:
-            x_padded = x.data
-
-        # Convolution operation
-        for i in range(0, H_out * self.stride, self.stride):
-            for j in range(0, W_out * self.stride, self.stride):
-                x_slice = x_padded[:, :, i:i+kernel_height, j:j+kernel_width]
-                for k in range(out_channels):
-                    out[:, k, i//self.stride, j//self.stride] = np.sum(x_slice * self.weights.data[k, :, :, :], axis=(1, 2, 3)) + self.bias.data[k]
-
-        return Tensor(out)
+        batch_size = x.data.shape[0]
+        return Tensor(x.data.reshape(batch_size, -1))
 
 #activation functions
 class ReLU:
